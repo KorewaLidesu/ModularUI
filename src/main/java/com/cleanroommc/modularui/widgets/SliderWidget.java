@@ -1,14 +1,17 @@
 package com.cleanroommc.modularui.widgets;
 
+import com.cleanroommc.modularui.api.ITheme;
 import com.cleanroommc.modularui.api.drawable.IDrawable;
-import com.cleanroommc.modularui.api.sync.SyncHandler;
+import com.cleanroommc.modularui.api.value.IDoubleValue;
 import com.cleanroommc.modularui.api.widget.IGuiAction;
 import com.cleanroommc.modularui.api.widget.Interactable;
 import com.cleanroommc.modularui.drawable.GuiTextures;
 import com.cleanroommc.modularui.drawable.Rectangle;
 import com.cleanroommc.modularui.screen.viewport.GuiContext;
-import com.cleanroommc.modularui.sync.DoubleSyncHandler;
+import com.cleanroommc.modularui.theme.WidgetTheme;
 import com.cleanroommc.modularui.utils.Color;
+import com.cleanroommc.modularui.value.DoubleValue;
+import com.cleanroommc.modularui.value.sync.SyncHandler;
 import com.cleanroommc.modularui.widget.Widget;
 import com.cleanroommc.modularui.widget.sizer.Area;
 import com.cleanroommc.modularui.widget.sizer.GuiAxis;
@@ -18,14 +21,9 @@ import it.unimi.dsi.fastutil.doubles.DoubleList;
 import net.minecraft.util.math.MathHelper;
 import org.jetbrains.annotations.NotNull;
 
-import java.util.function.DoubleConsumer;
-import java.util.function.DoubleSupplier;
-
 public class SliderWidget extends Widget<SliderWidget> implements Interactable {
 
-    private DoubleSupplier getter;
-    private DoubleConsumer setter;
-    private DoubleSyncHandler syncHandler;
+    private IDoubleValue<?> doubleValue;
     private IDrawable stopperDrawable = new Rectangle().setColor(Color.withAlpha(Color.WHITE.normal, 0.4f));
     private IDrawable handleDrawable = GuiTextures.BUTTON;
     private GuiAxis axis = GuiAxis.X;
@@ -33,7 +31,7 @@ public class SliderWidget extends Widget<SliderWidget> implements Interactable {
     private int stopperWidth = 2, stopperHeight = 4;
     private final Unit sliderWidth = new Unit(), sliderHeight = new Unit();
     private final Area sliderArea = new Area();
-    private double min, max;
+    private double min, max, each = 0;
     private boolean dragging = false;
 
     private double cache = Double.MIN_VALUE;
@@ -49,9 +47,23 @@ public class SliderWidget extends Widget<SliderWidget> implements Interactable {
     }
 
     @Override
+    public void onInit() {
+        if (this.doubleValue == null) {
+            this.doubleValue = new DoubleValue((this.max - this.min) * 0.5 + this.min);
+        }
+        if (this.each > 0 && this.stopper == null) {
+            this.stopper = new DoubleArrayList();
+            for (double d = this.min; d < this.max; d += this.each) {
+                this.stopper.add(d);
+            }
+            this.stopper.add(this.max);
+        }
+    }
+
+    @Override
     public boolean isValidSyncHandler(SyncHandler syncHandler) {
-        if (syncHandler instanceof DoubleSyncHandler) {
-            this.syncHandler = (DoubleSyncHandler) syncHandler;
+        if (syncHandler instanceof IDoubleValue) {
+            this.doubleValue = (IDoubleValue<?>) syncHandler;
             return true;
         }
         return false;
@@ -79,6 +91,9 @@ public class SliderWidget extends Widget<SliderWidget> implements Interactable {
     @Override
     public void draw(GuiContext context) {
         if (this.handleDrawable != null) {
+            ITheme theme = getContext().getTheme();
+            WidgetTheme buttonTheme = theme.getButtonTheme();
+            this.handleDrawable.applyThemeColor(theme, buttonTheme);
             this.handleDrawable.draw(context, this.sliderArea);
         }
     }
@@ -97,13 +112,13 @@ public class SliderWidget extends Widget<SliderWidget> implements Interactable {
 
     @Override
     public void postResize() {
-        setValue(getValue(), false);
+        setValue(getSliderValue(), false);
     }
 
     @Override
     public void onFrameUpdate() {
         if (this.dragging) return;
-        double val = getValue();
+        double val = getSliderValue();
         if (this.cache != val) {
             setValue(val, false);
         }
@@ -130,19 +145,13 @@ public class SliderWidget extends Widget<SliderWidget> implements Interactable {
     }
 
     public int valueToPos(double value) {
-        value -= min;
-        value /= (max - min);
+        value -= this.min;
+        value /= (this.max - this.min);
         return (int) (value * (getArea().getSize(this.axis) - this.sliderArea.getSize(this.axis)));
     }
 
-    public double getValue() {
-        if (this.syncHandler != null) {
-            return this.syncHandler.getDoubleValue();
-        }
-        if (this.getter != null) {
-            return this.getter.getAsDouble();
-        }
-        return (this.max - this.min) / 2 + this.min;
+    public double getSliderValue() {
+        return this.doubleValue.getDoubleValue();
     }
 
     public void setValue(double value, boolean setSource) {
@@ -167,38 +176,30 @@ public class SliderWidget extends Widget<SliderWidget> implements Interactable {
         this.cache = value;
         this.sliderArea.setPoint(this.axis, valueToPos(value));
         if (setSource) {
-            if (this.syncHandler != null) {
-                this.syncHandler.updateFromClient(value);
-            } else if (this.setter != null) {
-                this.setter.accept(value);
-            }
+            this.doubleValue.setDoubleValue(value);
         }
     }
 
     public double getMin() {
-        return min;
+        return this.min;
     }
 
     public double getMax() {
-        return max;
+        return this.max;
     }
 
     public boolean isDragging() {
-        return dragging;
+        return this.dragging;
     }
 
     @Override
     public String toString() {
-        return super.toString() + " # " + getValue();
+        return super.toString() + " # " + getSliderValue();
     }
 
-    public SliderWidget getter(DoubleSupplier getter) {
-        this.getter = getter;
-        return this;
-    }
-
-    public SliderWidget setter(DoubleConsumer setter) {
-        this.setter = setter;
+    public SliderWidget value(IDoubleValue<?> value) {
+        this.doubleValue = value;
+        setValue(value);
         return this;
     }
 
@@ -221,6 +222,11 @@ public class SliderWidget extends Widget<SliderWidget> implements Interactable {
             this.stopper.add(stop);
         }
         this.stopper.sort(Double::compare);
+        return this;
+    }
+
+    public SliderWidget stopper(double each) {
+        this.each = each;
         return this;
     }
 

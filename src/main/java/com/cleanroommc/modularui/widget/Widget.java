@@ -3,16 +3,18 @@ package com.cleanroommc.modularui.widget;
 import com.cleanroommc.modularui.ModularUIConfig;
 import com.cleanroommc.modularui.api.ITheme;
 import com.cleanroommc.modularui.api.drawable.IDrawable;
-import com.cleanroommc.modularui.api.sync.SyncHandler;
-import com.cleanroommc.modularui.api.sync.ValueSyncHandler;
+import com.cleanroommc.modularui.api.value.IValue;
 import com.cleanroommc.modularui.api.widget.*;
 import com.cleanroommc.modularui.drawable.DrawableArray;
+import com.cleanroommc.modularui.manager.GuiCreationContext;
 import com.cleanroommc.modularui.screen.ModularPanel;
 import com.cleanroommc.modularui.screen.ModularScreen;
 import com.cleanroommc.modularui.screen.Tooltip;
 import com.cleanroommc.modularui.screen.viewport.GuiContext;
-import com.cleanroommc.modularui.sync.GuiSyncHandler;
 import com.cleanroommc.modularui.theme.WidgetTheme;
+import com.cleanroommc.modularui.value.sync.GuiSyncManager;
+import com.cleanroommc.modularui.value.sync.SyncHandler;
+import com.cleanroommc.modularui.value.sync.ValueSyncHandler;
 import com.cleanroommc.modularui.widget.sizer.Area;
 import com.cleanroommc.modularui.widget.sizer.Box;
 import com.cleanroommc.modularui.widget.sizer.Flex;
@@ -42,6 +44,8 @@ public class Widget<W extends Widget<W>> implements IWidget, IPositioned<W>, ITo
     private String debugName;
 
     @Nullable
+    private IValue<?> value;
+    @Nullable
     private String syncKey;
     @Nullable
     private SyncHandler syncHandler;
@@ -60,18 +64,20 @@ public class Widget<W extends Widget<W>> implements IWidget, IPositioned<W>, ITo
     @ApiStatus.Internal
     @Override
     public void initialise(@NotNull IWidget parent) {
-        if (this instanceof ModularPanel) {
-            getArea().z(2);
-        } else {
+        if (!(this instanceof ModularPanel)) {
             this.parent = parent;
             this.panel = parent.getPanel();
             this.context = parent.getContext();
+            getArea().setPanelLayer(this.panel.getArea().getPanelLayer());
             getArea().z(parent.getArea().z() + 1);
             if (this.guiActionListeners != null) {
                 for (IGuiAction action : this.guiActionListeners) {
                     this.context.screen.registerGuiActionListener(action);
                 }
             }
+        }
+        if (this.value != null && this.syncKey != null) {
+            throw new IllegalStateException("Widget has a value and a sync key for a synced value. This is not allowed!");
         }
         this.valid = true;
         if (!getScreen().isClientOnly()) {
@@ -87,9 +93,6 @@ public class Widget<W extends Widget<W>> implements IWidget, IPositioned<W>, ITo
                 child.initialise(this);
             }
         }
-        if (getScreen().getMainPanel() == this) {
-            getArea().z(1);
-        }
         afterInit();
     }
 
@@ -102,7 +105,7 @@ public class Widget<W extends Widget<W>> implements IWidget, IPositioned<W>, ITo
     }
 
     @Override
-    public void initialiseSyncHandler(GuiSyncHandler syncHandler) {
+    public void initialiseSyncHandler(GuiSyncManager syncHandler) {
         if (this.syncKey != null) {
             this.syncHandler = syncHandler.getSyncHandler(this.syncKey);
             if (!isValidSyncHandler(this.syncHandler)) {
@@ -111,7 +114,7 @@ public class Widget<W extends Widget<W>> implements IWidget, IPositioned<W>, ITo
                 throw new IllegalStateException("SyncHandler of type " + type + " is not valid for " + getClass().getName() + ", with key " + this.syncKey);
             }
             if (this.syncHandler instanceof ValueSyncHandler && ((ValueSyncHandler<?>) this.syncHandler).getChangeListener() == null) {
-                ((ValueSyncHandler<?>) this.syncHandler).setChangeListener(this::markDirty);
+                ((ValueSyncHandler<?>) this.syncHandler).setChangeListener(this::markTooltipDirty);
             }
         }
     }
@@ -177,7 +180,7 @@ public class Widget<W extends Widget<W>> implements IWidget, IPositioned<W>, ITo
 
     @Override
     public Area getArea() {
-        return area;
+        return this.area;
     }
 
     @SuppressWarnings("unchecked")
@@ -196,21 +199,21 @@ public class Widget<W extends Widget<W>> implements IWidget, IPositioned<W>, ITo
         if (!isValid()) {
             throw new IllegalStateException(getClass().getSimpleName() + " is not in a valid state!");
         }
-        return panel;
+        return this.panel;
     }
 
     @Override
     public boolean isEnabled() {
-        return enabled;
+        return this.enabled;
     }
 
     @Override
     public boolean isValid() {
-        return valid;
+        return this.valid;
     }
 
     @Override
-    public void markDirty() {
+    public void markTooltipDirty() {
         if (this.tooltip != null) {
             this.tooltip.markDirty();
         }
@@ -221,7 +224,7 @@ public class Widget<W extends Widget<W>> implements IWidget, IPositioned<W>, ITo
         if (!isValid()) {
             throw new IllegalStateException(getClass().getSimpleName() + " is not in a valid state!");
         }
-        return parent;
+        return this.parent;
     }
 
     @Override
@@ -229,7 +232,7 @@ public class Widget<W extends Widget<W>> implements IWidget, IPositioned<W>, ITo
         if (!isValid()) {
             throw new IllegalStateException(getClass().getSimpleName() + " is not in a valid state!");
         }
-        return context;
+        return this.context;
     }
 
     /**
@@ -256,19 +259,19 @@ public class Widget<W extends Widget<W>> implements IWidget, IPositioned<W>, ITo
     }
 
     public @Nullable IDrawable getBackground() {
-        return background;
+        return this.background;
     }
 
     public @Nullable IDrawable getOverlay() {
-        return overlay;
+        return this.overlay;
     }
 
     public @Nullable IDrawable getHoverBackground() {
-        return hoverBackground;
+        return this.hoverBackground;
     }
 
     public @Nullable IDrawable getHoverOverlay() {
-        return hoverOverlay;
+        return this.hoverOverlay;
     }
 
     public IDrawable getCurrentBackground() {
@@ -284,7 +287,7 @@ public class Widget<W extends Widget<W>> implements IWidget, IPositioned<W>, ITo
     @Nullable
     @Override
     public Tooltip getTooltip() {
-        return tooltip;
+        return this.tooltip;
     }
 
     @Override
@@ -300,7 +303,7 @@ public class Widget<W extends Widget<W>> implements IWidget, IPositioned<W>, ITo
 
     @Override
     public Flex getFlex() {
-        return flex;
+        return this.flex;
     }
 
     @Override
@@ -309,7 +312,7 @@ public class Widget<W extends Widget<W>> implements IWidget, IPositioned<W>, ITo
             this.flex = new Flex(this);
 
             if (this.resizer == null) {
-                this.resizer = flex;
+                this.resizer = this.flex;
             }
         }
         return this.flex;
@@ -317,7 +320,7 @@ public class Widget<W extends Widget<W>> implements IWidget, IPositioned<W>, ITo
 
     @Override
     public IResizeable resizer() {
-        return resizer;
+        return this.resizer;
     }
 
     @Override
@@ -325,23 +328,27 @@ public class Widget<W extends Widget<W>> implements IWidget, IPositioned<W>, ITo
         this.resizer = resizer;
     }
 
+    @Override
     public boolean isSynced() {
-        return syncKey != null && syncHandler != null;
+        return this.syncHandler != null;
     }
 
-    public SyncHandler getSyncHandler() {
-        if (this.syncKey == null) {
-            throw new IllegalStateException("Widget is not synced!");
-        }
+    @Override
+    public @NotNull SyncHandler getSyncHandler() {
         if (this.syncHandler == null) {
-            throw new IllegalStateException("Widget is not initialised!");
+            throw new IllegalStateException("Widget is not initialised or not synced!");
         }
-        return syncHandler;
+        return this.syncHandler;
     }
 
     @Override
     public void setEnabled(boolean enabled) {
         this.enabled = enabled;
+    }
+
+    @Nullable
+    public IValue<?> getValue() {
+        return this.value;
     }
 
     public W disabled() {
@@ -410,15 +417,30 @@ public class Widget<W extends Widget<W>> implements IWidget, IPositioned<W>, ITo
     }
 
     @Override
-    public W setSynced(String key) {
+    public W syncHandler(String key) {
         this.syncKey = key;
         return getThis();
     }
 
+    protected void setValue(IValue<?> value) {
+        this.value = value;
+        if (value instanceof SyncHandler) {
+            setSyncHandler((SyncHandler) value);
+        }
+    }
+
+    /**
+     * This intended to only be used when build the main panel in methods like {@link com.cleanroommc.modularui.api.IGuiHolder#buildUI(GuiCreationContext, GuiSyncManager, boolean)}
+     * since it's called on server and client. Otherwise, this will not work.
+     */
+    protected void setSyncHandler(@Nullable SyncHandler syncHandler) {
+        this.syncHandler = syncHandler;
+    }
+
     @Override
     public String toString() {
-        if (debugName != null) {
-            return getClass().getSimpleName() + "#" + debugName;
+        if (this.debugName != null) {
+            return getClass().getSimpleName() + "#" + this.debugName;
         }
         return getClass().getSimpleName();
     }

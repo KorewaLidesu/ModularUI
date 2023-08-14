@@ -6,8 +6,8 @@ public class DimensionSizer {
 
     private final GuiAxis axis;
 
+    private final Unit p1 = new Unit(), p2 = new Unit();
     private Unit start, end, size;
-    private Unit p1, p2;
 
     private boolean coverChildren = false;
     private boolean cancelAutoMovement = false;
@@ -15,15 +15,32 @@ public class DimensionSizer {
 
     public DimensionSizer(GuiAxis axis) {
         this.axis = axis;
-        reset();
     }
 
     public void reset() {
-        this.p1 = new Unit();
-        this.p2 = new Unit();
+        this.p1.reset();
+        this.p2.reset();
         this.start = null;
         this.end = null;
         this.size = null;
+    }
+
+    public void resetPosition() {
+        if (this.start != null) {
+            this.start.reset();
+            this.start = null;
+        }
+        if (this.end != null) {
+            this.end.reset();
+            this.end = null;
+        }
+    }
+
+    public void resetSize() {
+        if (this.size != null) {
+            this.size.reset();
+            this.size = null;
+        }
     }
 
     public void setDefaultMode(boolean defaultMode) {
@@ -49,6 +66,10 @@ public class DimensionSizer {
 
     public boolean hasPos() {
         return this.start != null || this.end != null;
+    }
+
+    public boolean hasFixedSize() {
+        return this.start == null || this.end == null;
     }
 
     public boolean hasSize() {
@@ -88,7 +109,7 @@ public class DimensionSizer {
                         p = calcPoint(this.start, s, parentSize);
                     }
                 }
-            } else if (end == null) {
+            } else if (this.end == null) {
                 s = calcSize(this.size, parentSize);
                 p = calcPoint(this.start, s, parentSize);
             } else {
@@ -127,7 +148,7 @@ public class DimensionSizer {
             p = relativeTo.getSize(this.axis) - p - s;
         } else {
             p = area.getRelativePoint(this.axis) + p0 + area.getMargin().getStart(this.axis);
-            if (!cancelAutoMovement) {
+            if (!this.cancelAutoMovement) {
                 moveAmount = -p0;
             }
         }
@@ -159,68 +180,68 @@ public class DimensionSizer {
     }
 
     protected Unit getStart() {
-        if (start == null) {
+        if (this.start == null) {
             Unit u = null;
-            if (p1.type == Unit.UNUSED) u = p1;
-            else if (p2.type == Unit.UNUSED) u = p2;
-            else if (!defaultMode) {
-                if (end.type == Unit.DEFAULT) {
-                    u = end;
-                    end = null;
-                } else if (size.type == Unit.DEFAULT) {
-                    u = size;
-                    size = null;
+            if (this.p1.type == Unit.UNUSED) u = this.p1;
+            else if (this.p2.type == Unit.UNUSED) u = this.p2;
+            else if (!this.defaultMode) {
+                if (this.end.type == Unit.DEFAULT) {
+                    u = this.end;
+                    this.end = null;
+                } else if (this.size.type == Unit.DEFAULT) {
+                    u = this.size;
+                    this.size = null;
                 }
             }
             if (u == null) throw new IllegalStateException();
-            start = u;
-            start.reset();
+            this.start = u;
+            this.start.reset();
         }
-        start.type = defaultMode ? Unit.DEFAULT : Unit.START;
-        return start;
+        this.start.type = this.defaultMode ? Unit.DEFAULT : Unit.START;
+        return this.start;
     }
 
     protected Unit getEnd() {
-        if (end == null) {
+        if (this.end == null) {
             Unit u = null;
-            if (p1.type == Unit.UNUSED) u = p1;
-            else if (p2.type == Unit.UNUSED) u = p2;
-            else if (!defaultMode) {
-                if (start.type == Unit.DEFAULT) {
-                    u = start;
-                    start = null;
-                } else if (size.type == Unit.DEFAULT) {
-                    u = size;
-                    size = null;
+            if (this.p1.type == Unit.UNUSED) u = this.p1;
+            else if (this.p2.type == Unit.UNUSED) u = this.p2;
+            else if (!this.defaultMode) {
+                if (this.start.type == Unit.DEFAULT) {
+                    u = this.start;
+                    this.start = null;
+                } else if (this.size.type == Unit.DEFAULT) {
+                    u = this.size;
+                    this.size = null;
                 }
             }
             if (u == null) throw new IllegalStateException();
-            end = u;
-            end.reset();
+            this.end = u;
+            this.end.reset();
         }
-        end.type = defaultMode ? Unit.DEFAULT : Unit.END;
-        return end;
+        this.end.type = this.defaultMode ? Unit.DEFAULT : Unit.END;
+        return this.end;
     }
 
     protected Unit getSize() {
-        if (size == null) {
+        if (this.size == null) {
             Unit u = null;
-            if (p1.type == Unit.UNUSED) u = p1;
-            else if (p2.type == Unit.UNUSED) u = p2;
-            else if (!defaultMode) {
-                if (end.type == Unit.DEFAULT) {
-                    u = end;
-                    end = null;
-                } else if (start.type == Unit.DEFAULT) {
-                    u = start;
-                    start = null;
+            if (this.p1.type == Unit.UNUSED) u = this.p1;
+            else if (this.p2.type == Unit.UNUSED) u = this.p2;
+            else if (!this.defaultMode) {
+                if (this.end.type == Unit.DEFAULT) {
+                    u = this.end;
+                    this.end = null;
+                } else if (this.start.type == Unit.DEFAULT) {
+                    u = this.start;
+                    this.start = null;
                 }
             }
             if (u == null) throw new IllegalStateException();
-            size = u;
-            size.reset();
+            this.size = u;
+            this.size.reset();
         }
-        size.type = defaultMode ? Unit.DEFAULT : Unit.SIZE;
-        return size;
+        this.size.type = this.defaultMode ? Unit.DEFAULT : Unit.SIZE;
+        return this.size;
     }
 }
